@@ -1,12 +1,16 @@
+# database.py
+# Gestion de la base de données SQLite - CRUD complet + emprunts + statistiques
 
 import sqlite3
+import csv
+from datetime import datetime, timedelta
 from models import Livre
 from config import get_db_path
 
 class BibliothequeDB:
     """
     Classe qui gère toutes les opérations sur la base de données
-    CRUD complet conforme au cahier des charges
+    CRUD complet + emprunts + export + statistiques
     """
     
     def __init__(self):
@@ -28,7 +32,9 @@ class BibliothequeDB:
                 annee_publication INTEGER NOT NULL,
                 quantite_disponible INTEGER NOT NULL DEFAULT 1,
                 statut TEXT NOT NULL DEFAULT 'disponible',
-                date_retour_prevue TEXT
+                date_retour_prevue TEXT,
+                date_emprunt TEXT,
+                emprunteur TEXT
             )
         ''')
         
@@ -39,9 +45,7 @@ class BibliothequeDB:
     # ==================== CRUD PRINCIPAL ====================
     
     def ajouter_livre(self, livre):
-        """
-        Ajouter un nouveau livre dans la base de données
-        """
+        """Ajouter un nouveau livre dans la base de données"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -59,9 +63,7 @@ class BibliothequeDB:
         return livre.id_livre
     
     def afficher_tous_les_livres(self):
-        """
-        Récupère et retourne tous les livres de la bibliothèque
-        """
+        """Récupère et retourne tous les livres de la bibliothèque"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -86,14 +88,10 @@ class BibliothequeDB:
         return livres
     
     def modifier_livre(self, id_livre, **champs_modifies):
-        """
-        Modifier les informations d'un livre
-        Exemple: modifier_livre(1, titre="Nouveau titre", quantite_disponible=5)
-        """
+        """Modifier les informations d'un livre"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Construire la requête dynamiquement
         set_clauses = []
         valeurs = []
         
@@ -112,9 +110,7 @@ class BibliothequeDB:
         return cursor.rowcount > 0
     
     def supprimer_livre(self, id_livre):
-        """
-        Supprimer un livre par son ID
-        """
+        """Supprimer un livre par son ID"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -125,12 +121,144 @@ class BibliothequeDB:
         print(f"🗑️ Livre ID {id_livre} supprimé")
         return cursor.rowcount > 0
     
+    # ==================== GESTION DES EMPRUNTS ====================
+    
+    def emprunter_livre(self, id_livre, emprunteur="Anonyme", jours_emprunt=14):
+        """Emprunte un livre pour X jours"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Vérifier si le livre existe et est disponible
+        cursor.execute('SELECT quantite_disponible, statut, titre FROM livres WHERE id_livre = ?', (id_livre,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return False, "Livre non trouvé"
+        
+        quantite, statut, titre = result
+        
+        if quantite <= 0 or statut != "disponible":
+            conn.close()
+            return False, f"Le livre '{titre}' n'est pas disponible pour l'emprunt"
+        
+        date_emprunt = datetime.now().strftime("%d/%m/%Y")
+        date_retour = (datetime.now() + timedelta(days=jours_emprunt)).strftime("%d/%m/%Y")
+        
+        nouvelle_quantite = quantite - 1
+        nouveau_statut = "emprunté" if nouvelle_quantite == 0 else "disponible"
+        
+        cursor.execute('''
+            UPDATE livres 
+            SET quantite_disponible = ?,
+                statut = ?,
+                date_retour_prevue = ?,
+                date_emprunt = ?,
+                emprunteur = ?
+            WHERE id_livre = ?
+        ''', (nouvelle_quantite, nouveau_statut, date_retour, date_emprunt, emprunteur, id_livre))
+        
+        conn.commit()
+        conn.close()
+        
+        return True, f"✅ Livre '{titre}' emprunté avec succès ! Retour prévu le {date_retour}"
+    
+    def retourner_livre(self, id_livre):
+        """Retourne un livre emprunté"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Vérifier si le livre existe
+        cursor.execute('SELECT quantite_disponible, titre, statut FROM livres WHERE id_livre = ?', (id_livre,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return False, "Livre non trouvé"
+        
+        quantite, titre, statut = result
+        
+        if statut == "disponible":
+            conn.close()
+            return False, f"Le livre '{titre}' n'est pas emprunté"
+        
+        nouvelle_quantite = quantite + 1
+        nouveau_statut = "disponible"
+        
+        cursor.execute('''
+            UPDATE livres 
+            SET quantite_disponible = ?,
+                statut = ?,
+                date_retour_prevue = NULL,
+                date_emprunt = NULL,
+                emprunteur = NULL
+            WHERE id_livre = ?
+        ''', (nouvelle_quantite, nouveau_statut, id_livre))
+        
+        conn.commit()
+        conn.close()
+        
+        return True, f"✅ Livre '{titre}' retourné avec succès ! Merci !"
+    
+    def lister_emprunts_en_cours(self):
+        """Liste tous les livres actuellement empruntés"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id_livre, titre, auteur, date_retour_prevue, date_emprunt, emprunteur
+            FROM livres 
+            WHERE statut = 'emprunté'
+            ORDER BY date_retour_prevue
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        emprunts = []
+        for row in rows:
+            emprunts.append({
+                'id': row[0],
+                'titre': row[1],
+                'auteur': row[2],
+                'date_retour': row[3],
+                'date_emprunt': row[4],
+                'emprunteur': row[5] or "Anonyme"
+            })
+        
+        return emprunts
+    
+    def verifier_retards(self):
+        """Vérifie les livres en retard"""
+        aujourdhui = datetime.now().strftime("%d/%m/%Y")
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id_livre, titre, auteur, date_retour_prevue, emprunteur
+            FROM livres 
+            WHERE statut = 'emprunté' AND date_retour_prevue < ?
+        ''', (aujourdhui,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        retards = []
+        for row in rows:
+            retards.append({
+                'id': row[0],
+                'titre': row[1],
+                'auteur': row[2],
+                'date_retour': row[3],
+                'emprunteur': row[4] or "Anonyme"
+            })
+        
+        return retards
+    
     # ==================== RECHERCHES ====================
     
     def rechercher_par_id(self, id_livre):
-        """
-        Rechercher un livre par son ID
-        """
+        """Rechercher un livre par son ID"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -152,9 +280,7 @@ class BibliothequeDB:
         return None
     
     def rechercher_par_titre(self, titre):
-        """
-        Rechercher des livres par titre (recherche partielle)
-        """
+        """Rechercher des livres par titre (recherche partielle)"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -172,9 +298,7 @@ class BibliothequeDB:
         return livres
     
     def rechercher_par_auteur(self, auteur):
-        """
-        Rechercher des livres par auteur (recherche partielle)
-        """
+        """Rechercher des livres par auteur (recherche partielle)"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -191,25 +315,171 @@ class BibliothequeDB:
             ))
         return livres
     
-    def get_tous_les_livres_texte(self):
-        """
-        Retourne tous les livres sous forme de texte (pour le chatbot)
-        """
-        livres = self.afficher_tous_les_livres()
-        if not livres:
-            return "Aucun livre dans la bibliothèque."
+    def filtrer_par_categorie(self, categorie):
+        """Filtre les livres par catégorie"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
         
-        texte = "Voici tous les livres de la bibliothèque :\n\n"
+        cursor.execute('SELECT * FROM livres WHERE categorie LIKE ?', (f'%{categorie}%',))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        livres = []
+        for row in rows:
+            livres.append(Livre(
+                id_livre=row[0], titre=row[1], auteur=row[2],
+                categorie=row[3], annee_publication=row[4],
+                quantite_disponible=row[5], statut=row[6], date_retour_prevue=row[7]
+            ))
+        return livres
+    
+    def filtrer_par_annee(self, annee_min, annee_max):
+        """Filtre les livres par plage d'années"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM livres WHERE annee_publication BETWEEN ? AND ?', (annee_min, annee_max))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        livres = []
+        for row in rows:
+            livres.append(Livre(
+                id_livre=row[0], titre=row[1], auteur=row[2],
+                categorie=row[3], annee_publication=row[4],
+                quantite_disponible=row[5], statut=row[6], date_retour_prevue=row[7]
+            ))
+        return livres
+    
+    # ==================== STATISTIQUES ====================
+    
+    def get_statistiques(self):
+        """Retourne des statistiques complètes sur la bibliothèque"""
+        livres = self.afficher_tous_les_livres()
+        
+        total = len(livres)
+        disponibles = len([l for l in livres if l.statut == "disponible"])
+        empruntes = len([l for l in livres if l.statut == "emprunté"])
+        reserves = len([l for l in livres if l.statut == "réservé"])
+        
+        # Statistiques par catégorie
+        categories = {}
         for livre in livres:
-            texte += f"• ID {livre.id_livre} : {livre.titre} - {livre.auteur} ({livre.categorie}) - {livre.statut} ({livre.quantite_disponible} ex.)\n"
-        return texte
+            if livre.categorie in categories:
+                categories[livre.categorie] += 1
+            else:
+                categories[livre.categorie] = 1
+        
+        # Année moyenne
+        if total > 0:
+            annee_moyenne = sum([l.annee_publication for l in livres]) // total
+        else:
+            annee_moyenne = 0
+        
+        # Livre le plus ancien et le plus récent
+        if livres:
+            plus_ancien = min(livres, key=lambda x: x.annee_publication)
+            plus_recent = max(livres, key=lambda x: x.annee_publication)
+        else:
+            plus_ancien = plus_recent = None
+        
+        return {
+            'total': total,
+            'disponibles': disponibles,
+            'empruntes': empruntes,
+            'reserves': reserves,
+            'categories': categories,
+            'annee_moyenne': annee_moyenne,
+            'plus_ancien': plus_ancien,
+            'plus_recent': plus_recent
+        }
+    
+    # ==================== EXPORT ====================
+    
+    def exporter_csv(self, filename="catalogue_bibliotheque.csv"):
+        """Exporte le catalogue complet en CSV"""
+        livres = self.afficher_tous_les_livres()
+        
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['ID', 'Titre', 'Auteur', 'Catégorie', 'Année', 'Quantité', 'Statut', 'Date retour'])
+            
+            for livre in livres:
+                writer.writerow([
+                    livre.id_livre, livre.titre, livre.auteur, 
+                    livre.categorie, livre.annee_publication, 
+                    livre.quantite_disponible, livre.statut,
+                    livre.date_retour_prevue or ""
+                ])
+        
+        return f"✅ Exporté vers {filename}"
+    
+    def exporter_emprunts_csv(self, filename="emprunts_en_cours.csv"):
+        """Exporte la liste des emprunts en CSV"""
+        emprunts = self.lister_emprunts_en_cours()
+        
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['ID', 'Titre', 'Auteur', 'Emprunteur', "Date d'emprunt", 'Retour prévu'])
+            
+            for emprunt in emprunts:
+                writer.writerow([
+                    emprunt['id'], emprunt['titre'], emprunt['auteur'],
+                    emprunt['emprunteur'], emprunt['date_emprunt'], emprunt['date_retour']
+                ])
+        
+        return f"✅ Exporté vers {filename}"
+    
+    # ==================== SAUVEGARDE ====================
+    
+    def backup_database(self, backup_name=None):
+        """Sauvegarde la base de données"""
+        import shutil
+        import os
+        
+        if not backup_name:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"backup_bibliotheque_{timestamp}.db"
+        
+        shutil.copy2(self.db_path, backup_name)
+        return f"✅ Base de données sauvegardée vers {backup_name}"
+    
+    def restaurer_backup(self, backup_path):
+        """Restaure une sauvegarde"""
+        import shutil
+        import os
+        
+        if not os.path.exists(backup_path):
+            return False, f"Fichier {backup_path} non trouvé"
+        
+        shutil.copy2(backup_path, self.db_path)
+        return True, f"✅ Restauration depuis {backup_path} effectuée"
+    
+    # ==================== GESTION DES CATÉGORIES ====================
+    
+    def get_toutes_categories(self):
+        """Retourne la liste de toutes les catégories existantes"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT DISTINCT categorie FROM livres ORDER BY categorie')
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [row[0] for row in rows]
+    
+    def ajouter_categorie(self, categorie):
+        """Ajoute une catégorie (vérification d'existence)"""
+        categories = self.get_toutes_categories()
+        if categorie not in categories:
+            # On ne peut pas ajouter une catégorie seule, on attend qu'un livre l'utilise
+            return f"📌 La catégorie '{categorie}' sera disponible lors de l'ajout d'un livre"
+        return f"⚠️ La catégorie '{categorie}' existe déjà"
     
     # ==================== DONNÉES DE TEST ====================
     
     def ajouter_donnees_test(self):
-        """
-        Ajoute des livres d'exemple (pour tester l'application)
-        """
+        """Ajoute des livres d'exemple (pour tester l'application)"""
         livres_test = [
             Livre(titre="Le Petit Prince", auteur="Antoine de Saint-Exupéry", 
                   categorie="Roman", annee_publication=1943, quantite_disponible=3, statut="disponible"),
