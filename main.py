@@ -1,4 +1,4 @@
-# main.py - Version finale corrigée
+# main.py - Version avec plein écran et fenêtres centrées
 
 import customtkinter as ctk
 import tkinter as tk
@@ -10,7 +10,10 @@ from models import Livre
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
-from chatbot import ChatbotIntelligent  # Import depuis chatbot.py
+from chatbot import ChatbotIntelligent
+from auth import AuthManager
+from login_dialog import LoginDialog
+from user_manager import UserManagerDialog
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 
@@ -19,6 +22,15 @@ matplotlib.use('TkAgg')
 # Configuration du thème
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+
+def center_window(window, width, height):
+    """Centre une fenêtre sur l'écran"""
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    window.geometry(f"{width}x{height}+{x}+{y}")
 
 
 # ==================== POPUPS AJOUT/MODIFICATION ====================
@@ -33,12 +45,12 @@ class AjouterLivreDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
         
-        x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 550) // 2
-        self.geometry(f"+{x}+{y}")
+        # Centrer la fenêtre
+        center_window(self, 500, 550)
         self.setup_ui()
     
     def setup_ui(self):
+        # ... (contenu identique à avant)
         ctk.CTkLabel(self, text="➕ NOUVEAU LIVRE", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=20)
         
         form = ctk.CTkFrame(self)
@@ -104,9 +116,7 @@ class ModifierLivreDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
         
-        x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 550) // 2
-        self.geometry(f"+{x}+{y}")
+        center_window(self, 500, 550)
         self.setup_ui()
     
     def setup_ui(self):
@@ -191,33 +201,27 @@ class DashboardStatistiques(ctk.CTkToplevel):
         self.geometry("1000x750")
         self.transient(parent)
         
-        # Style
         self.configure(fg_color="#0f0f1a")
+        center_window(self, 1000, 750)
         
         self.setup_ui()
         self.creer_graphiques()
         self.afficher_emprunteurs()
     
     def setup_ui(self):
-        """Interface du dashboard"""
-        
-        # En-tête
         header = ctk.CTkFrame(self, height=50, fg_color="#1a1a2e")
         header.pack(fill="x", padx=10, pady=(10, 5))
         
         ctk.CTkLabel(header, text="📊 DASHBOARD", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=20)
         
-        # Bouton rafraîchir
         btn_refresh = ctk.CTkButton(header, text="🔄 RAFRAÎCHIR", command=self.rafraichir,
                                    fg_color="#3498db", hover_color="#2980b9", width=120)
         btn_refresh.pack(side="right", padx=10)
         
-        # Bouton export
         btn_export = ctk.CTkButton(header, text="📁 EXPORT CSV", command=self.exporter_csv,
                                    fg_color="#2ecc71", hover_color="#27ae60", width=120)
         btn_export.pack(side="right", padx=10)
         
-        # Conteneur principal avec deux colonnes
         main_container = ctk.CTkFrame(self, fg_color="transparent")
         main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -225,7 +229,6 @@ class DashboardStatistiques(ctk.CTkToplevel):
         main_container.grid_columnconfigure(1, weight=1)
         main_container.grid_rowconfigure(0, weight=1)
         
-        # Colonne gauche : Graphiques
         left_frame = ctk.CTkFrame(main_container, fg_color="#1e1e2e", corner_radius=15)
         left_frame.grid(row=0, column=0, padx=(0, 5), sticky="nsew")
         
@@ -235,88 +238,56 @@ class DashboardStatistiques(ctk.CTkToplevel):
         self.frame_graph = ctk.CTkFrame(left_frame, fg_color="transparent")
         self.frame_graph.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Colonne droite : Emprunteurs
         right_frame = ctk.CTkFrame(main_container, fg_color="#1e1e2e", corner_radius=15)
         right_frame.grid(row=0, column=1, padx=(5, 0), sticky="nsew")
         
         ctk.CTkLabel(right_frame, text="👥 PERSONNES AYANT EMPRUNTÉ", 
                     font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
         
-        # Zone de texte pour la liste des emprunteurs
         self.emprunteurs_text = scrolledtext.ScrolledText(
-            right_frame, 
-            wrap="word",
-            font=("Segoe UI", 12),
-            bg="#1e1e2e",
-            fg="#ffffff",
-            relief="flat",
-            borderwidth=0,
-            height=20
+            right_frame, wrap="word", font=("Segoe UI", 12),
+            bg="#1e1e2e", fg="#ffffff", relief="flat", borderwidth=0, height=20
         )
         self.emprunteurs_text.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Configuration des couleurs des tags
         self.emprunteurs_text.tag_config("title", foreground="#f39c12", font=("Segoe UI", 14, "bold"))
         self.emprunteurs_text.tag_config("name", foreground="#2ecc71", font=("Segoe UI", 11, "bold"))
         self.emprunteurs_text.tag_config("book", foreground="#3498db")
         self.emprunteurs_text.tag_config("date", foreground="#9b59b6")
         self.emprunteurs_text.tag_config("warning", foreground="#e74c3c")
         
-        # Pied de page avec infos
         footer = ctk.CTkFrame(self, height=40, fg_color="#1a1a2e")
         footer.pack(fill="x", padx=10, pady=(5, 10))
-        
         self.footer_label = ctk.CTkLabel(footer, text="", font=ctk.CTkFont(size=12))
         self.footer_label.pack(pady=10)
     
     def rafraichir(self):
-        """Rafraîchit les données du dashboard"""
-        # Re-créer les graphiques
         self.frame_graph.destroy()
         self.frame_graph = ctk.CTkFrame(self.frame_graph.master, fg_color="transparent")
         self.frame_graph.pack(fill="both", expand=True, padx=10, pady=10)
         self.creer_graphiques()
         
-        # Re-afficher la liste des emprunteurs
         self.emprunteurs_text.config(state="normal")
         self.emprunteurs_text.delete("1.0", "end")
         self.afficher_emprunteurs()
-        
         messagebox.showinfo("Rafraîchissement", "Les données ont été mises à jour !")
     
     def creer_graphiques(self):
-        """Crée les graphiques avec des couleurs lisibles"""
         stats = self.db.get_statistiques()
-        
-        # Style des graphiques
         plt.style.use('dark_background')
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 5))
         fig.patch.set_facecolor('#1e1e2e')
         
-        # Graphique 1: Répartition par statut
         statuts = ['Disponibles', 'Empruntés', 'Réservés']
         valeurs = [stats['disponibles'], stats['empruntes'], stats['reserves']]
         couleurs = ['#2ecc71', '#e74c3c', '#f39c12']
         explode = (0.05, 0.05, 0.05)
         
-        wedges, texts, autotexts = ax1.pie(valeurs, labels=statuts, colors=couleurs, 
-                                            autopct='%1.1f%%', startangle=90, explode=explode)
-        
-        # Personnaliser les couleurs du texte
-        for text in texts:
-            text.set_color('white')
-            text.set_fontsize(11)
-            text.set_fontweight('bold')
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontsize(10)
-            autotext.set_fontweight('bold')
-        
+        ax1.pie(valeurs, labels=statuts, colors=couleurs, autopct='%1.1f%%', startangle=90, explode=explode)
         ax1.set_title('Répartition par statut', color='white', fontsize=14, fontweight='bold')
         ax1.set_facecolor('#1e1e2e')
         
-        # Graphique 2: Top 5 catégories
         categories = list(stats['categories'].items())[:5]
         noms = [c[0][:15] for c in categories]
         counts = [c[1] for c in categories]
@@ -330,19 +301,16 @@ class DashboardStatistiques(ctk.CTkToplevel):
         ax2.spines['bottom'].set_color('white')
         ax2.spines['left'].set_color('white')
         
-        # Ajouter les valeurs sur les barres
         for bar, val in zip(bars, counts):
             ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
                     str(val), ha='center', color='white', fontsize=11, fontweight='bold')
         
         fig.tight_layout()
         
-        # Intégrer dans Tkinter
         canvas = FigureCanvasTkAgg(fig, master=self.frame_graph)
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True)
         
-        # Mettre à jour le footer
         self.footer_label.configure(
             text=f"📅 Année moyenne: {stats['annee_moyenne']} | "
                  f"🏛️ Plus ancien: {stats['plus_ancien'].titre if stats['plus_ancien'] else 'N/A'} | "
@@ -350,13 +318,9 @@ class DashboardStatistiques(ctk.CTkToplevel):
         )
     
     def afficher_emprunteurs(self):
-        """Affiche la liste des personnes qui ont emprunté des livres"""
-        
-        # Vider le texte
         self.emprunteurs_text.config(state="normal")
         self.emprunteurs_text.delete("1.0", "end")
         
-        # Récupérer les emprunts
         emprunts = self.db.lister_emprunts_en_cours()
         
         if not emprunts:
@@ -365,22 +329,17 @@ class DashboardStatistiques(ctk.CTkToplevel):
             self.emprunteurs_text.config(state="disabled")
             return
         
-        # En-tête
         self.emprunteurs_text.insert("end", f"📋 {len(emprunts)} emprunt(s) en cours\n\n", "title")
         
-        # Afficher chaque emprunteur
         for i, emprunt in enumerate(emprunts, 1):
-            # Vérifier si le livre est en retard
             est_en_retard = False
             if emprunt.get('date_retour'):
                 try:
-                    from datetime import datetime
                     date_retour = datetime.strptime(emprunt['date_retour'], "%d/%m/%Y")
                     est_en_retard = date_retour < datetime.now()
                 except:
                     pass
             
-            # Nom de l'emprunteur avec indicateur de retard
             if est_en_retard:
                 self.emprunteurs_text.insert("end", f"{i}. ⚠️ ", "warning")
                 self.emprunteurs_text.insert("end", f"{emprunt['emprunteur']}\n", "name")
@@ -388,16 +347,13 @@ class DashboardStatistiques(ctk.CTkToplevel):
                 self.emprunteurs_text.insert("end", f"{i}. 👤 ", "name")
                 self.emprunteurs_text.insert("end", f"{emprunt['emprunteur']}\n", "name")
             
-            # Livre emprunté
             self.emprunteurs_text.insert("end", f"   📖 Livre: ", "book")
             self.emprunteurs_text.insert("end", f"{emprunt['titre']}\n", "book")
             
-            # Date d'emprunt
             if emprunt.get('date_emprunt'):
                 self.emprunteurs_text.insert("end", f"   📅 Emprunté le: ", "date")
                 self.emprunteurs_text.insert("end", f"{emprunt['date_emprunt']}\n", "date")
             
-            # Date de retour prévue
             if emprunt.get('date_retour'):
                 self.emprunteurs_text.insert("end", f"   ⏰ Retour prévu: ", "date")
                 if est_en_retard:
@@ -407,62 +363,103 @@ class DashboardStatistiques(ctk.CTkToplevel):
             else:
                 self.emprunteurs_text.insert("end", "\n", "date")
         
-        # Statistiques supplémentaires
         total_emprunteurs = len(set([e['emprunteur'] for e in emprunts]))
         self.emprunteurs_text.insert("end", "━" * 40 + "\n", "date")
         self.emprunteurs_text.insert("end", f"📊 Total emprunteurs uniques: {total_emprunteurs}\n", "title")
-        
         self.emprunteurs_text.config(state="disabled")
     
     def exporter_csv(self):
-        """Exporte les données en CSV"""
         try:
-            # Exporter les statistiques
             self.db.exporter_csv("dashboard_stats.csv")
-            
-            # Exporter les emprunts
             self.db.exporter_emprunts_csv("dashboard_emprunts.csv")
-            
-            messagebox.showinfo("Export", 
-                "✅ Données exportées avec succès !\n\n"
-                "📁 dashboard_stats.csv - Statistiques des livres\n"
-                "📁 dashboard_emprunts.csv - Liste des emprunteurs"
-            )
+            messagebox.showinfo("Export", "✅ Données exportées avec succès !")
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'export: {e}")
 
 
 # ==================== APPLICATION PRINCIPALE ====================
 
-# ==================== APPLICATION PRINCIPALE ====================
-
 class BibliothequeApp:
     def __init__(self):
+        self.auth_manager = AuthManager()
+        
+        # Fenêtre principale en plein écran
         self.root = ctk.CTk()
-        self.root.title("📚 Bibliothèque Intelligente")
-        self.root.geometry("1300x750")
+        self.root.title("🔐 Bibliothèque Intelligente")
+        
+        # Mettre en plein écran
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
         
         self.db = BibliothequeDB()
-        self.chatbot = ChatbotIntelligent(self.db)
+        self.chatbot = None
         self.livre_selectionne = None
         
-        self.setup_ui()
-        self.rafraichir_liste()
+        self.show_login_dialog()
         self.root.mainloop()
+    
+    def show_login_dialog(self):
+        """Affiche la boîte de dialogue de connexion centrée"""
+        LoginDialog(self.root, self.auth_manager, self.on_login_success)
+    
+    def on_login_success(self):
+        """Appelé après une connexion réussie"""
+        self.setup_main_ui()
+        self.chatbot = ChatbotIntelligent(self.db)
+        self.rafraichir_liste()
+        self.add_user_menu()
+    
+    def add_user_menu(self):
+        """Ajoute le menu utilisateur"""
+        user_frame = ctk.CTkFrame(self.toolbar, fg_color="transparent")
+        user_frame.pack(side="right", padx=20)
+        
+        username = self.auth_manager.current_user
+        role = "👑 Admin" if self.auth_manager.is_admin() else "👤 User"
+        
+        user_label = ctk.CTkLabel(user_frame, text=f"{username} ({role})", 
+                                  font=ctk.CTkFont(size=12), text_color="#2ecc71")
+        user_label.pack(side="left", padx=10)
+        
+        btn_logout = ctk.CTkButton(user_frame, text="🚪 DÉCONNEXION", command=self.do_logout,
+                                   fg_color="#e74c3c", hover_color="#c0392b", height=30, width=100)
+        btn_logout.pack(side="left", padx=5)
+        
+        if self.auth_manager.is_admin():
+            btn_users = ctk.CTkButton(user_frame, text="👥 UTILISATEURS", command=self.open_user_manager,
+                                      fg_color="#9b59b6", hover_color="#8e44ad", height=30, width=120)
+            btn_users.pack(side="left", padx=5)
+    
+    def setup_main_ui(self):
+        """Configure l'interface principale en plein écran"""
+        self.root.title("📚 Bibliothèque Intelligente")
+        
+        self.setup_ui()
+    
+    def do_logout(self):
+        if messagebox.askyesno("Déconnexion", "Voulez-vous vraiment vous déconnecter ?"):
+            self.auth_manager.logout()
+            for widget in self.root.winfo_children():
+                widget.destroy()
+            self.show_login_dialog()
+    
+    def open_user_manager(self):
+        UserManagerDialog(self.root, self.auth_manager)
     
     def setup_ui(self):
         # Barre d'outils
-        toolbar = ctk.CTkFrame(self.root, height=50, fg_color="#1a1a2e")
-        toolbar.pack(fill="x", padx=10, pady=(10, 5))
-        toolbar.pack_propagate(False)
+        self.toolbar = ctk.CTkFrame(self.root, height=50, fg_color="#1a1a2e")
+        self.toolbar.pack(fill="x", padx=10, pady=(10, 5))
+        self.toolbar.pack_propagate(False)
         
-        ctk.CTkLabel(toolbar, text="📚", font=ctk.CTkFont(size=28)).pack(side="left", padx=20)
-        ctk.CTkLabel(toolbar, text="BIBLIOTHÈQUE INTELLIGENTE", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+        ctk.CTkLabel(self.toolbar, text="📚", font=ctk.CTkFont(size=28)).pack(side="left", padx=20)
+        ctk.CTkLabel(self.toolbar, text="BIBLIOTHÈQUE INTELLIGENTE", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
         
-        self.stats_label = ctk.CTkLabel(toolbar, text="📊 0 livres", font=ctk.CTkFont(size=12), text_color="#888")
+        self.stats_label = ctk.CTkLabel(self.toolbar, text="📊 0 livres", font=ctk.CTkFont(size=12), text_color="#888")
         self.stats_label.pack(side="left", padx=20)
         
-        btn_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(self.toolbar, fg_color="transparent")
         btn_frame.pack(side="right", padx=10)
         
         ctk.CTkButton(btn_frame, text="➕ AJOUTER", command=self.ouvrir_ajout, fg_color="#2ecc71", height=35, width=80).pack(side="left", padx=2)
@@ -473,15 +470,15 @@ class BibliothequeApp:
         ctk.CTkButton(btn_frame, text="📊 DASHBOARD", command=self.ouvrir_dashboard, fg_color="#9b59b6", height=35, width=80).pack(side="left", padx=2)
         
         btn_backup = ctk.CTkButton(btn_frame, text="💾 BACKUP", command=self.faire_backup, 
-                                fg_color="#2c3e50", hover_color="#1a252f", height=35, width=70)
+                                   fg_color="#2c3e50", height=35, width=70)
         btn_backup.pack(side="left", padx=2)
-
+        
         btn_restore = ctk.CTkButton(btn_frame, text="🔄 RESTORE", command=self.restaurer_backup, 
-                                    fg_color="#e67e22", hover_color="#d35400", height=35, width=70)
+                                    fg_color="#e67e22", height=35, width=70)
         btn_restore.pack(side="left", padx=2)
         
         # Recherche
-        search_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
+        search_frame = ctk.CTkFrame(self.toolbar, fg_color="transparent")
         search_frame.pack(side="right", padx=20)
         
         self.entry_recherche = ctk.CTkEntry(search_frame, placeholder_text="🔍 Rechercher...", width=250)
@@ -635,6 +632,7 @@ class BibliothequeApp:
         dialog.geometry("400x300")
         dialog.transient(self.root)
         dialog.grab_set()
+        center_window(dialog, 400, 300)
         
         ctk.CTkLabel(dialog, text=f"Emprunter : {livre.titre}", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=15)
         ctk.CTkLabel(dialog, text="Nom :").pack()
@@ -676,9 +674,8 @@ class BibliothequeApp:
     def faire_backup(self):
         msg = self.db.backup_database()
         messagebox.showinfo("Backup", msg)
-
+    
     def restaurer_backup(self):
-        """Restaure une sauvegarde sélectionnée par l'utilisateur"""
         success, message = self.db.restaurer_backup_interactif()
         if success:
             self.rafraichir_liste()
@@ -686,56 +683,7 @@ class BibliothequeApp:
             messagebox.showinfo("Succès", message)
         else:
             messagebox.showerror("Erreur", message)
-
-    def envoyer_message(self):
-        message = self.entry_chat.get().strip()
-        if not message:
-            return
-        self.chat_display.insert("end", f"\n👤 {message}\n", "user")
-        self.entry_chat.delete(0, "end")
-        self.root.update()
-        reponse = self.chatbot.get_reponse(message)
-        self.chat_display.insert("end", f"🤖 {reponse}\n", "bot")
-        self.chat_display.see("end")
     
-    def rechercher(self):
-        terme = self.entry_recherche.get().strip()
-        if not terme:
-            self.rafraichir_liste()
-            return
-        resultats = []
-        if terme.isdigit():
-            l = self.db.rechercher_par_id(int(terme))
-            if l:
-                resultats.append(l)
-        else:
-            resultats = self.db.rechercher_par_titre(terme)
-            for l in self.db.rechercher_par_auteur(terme):
-                if l not in resultats:
-                    resultats.append(l)
-        self.afficher_livres_dans_tree(resultats)
-        if not resultats:
-            messagebox.showinfo("Résultat", f"Aucun résultat pour '{terme}'")
-
-
-if __name__ == "__main__":
-    print("="*60)
-    print("📚 BIBLIOTHÈQUE INTELLIGENTE")
-    print("="*60)
-    app = BibliothequeApp()
-    
-def restaurer_backup(self):   # <-- AJOUTE CETTE MÉTHODE ICI
-    """Restaure une sauvegarde sélectionnée par l'utilisateur"""
-    success, message = self.db.restaurer_backup_interactif()
-    if success:
-        self.rafraichir_liste()
-        self.livre_selectionne = None
-        messagebox.showinfo("Succès", message)
-    else:
-        messagebox.showerror("Erreur", message)
-
-
-
     def envoyer_message(self):
         message = self.entry_chat.get().strip()
         if not message:
