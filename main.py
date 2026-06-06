@@ -1,57 +1,59 @@
-# main.py - Version avec Treeview pour un tableau stable et moderne
+# main.py - Version finale corrigée
 
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 import re
-import random
 from datetime import datetime
 from database import BibliothequeDB
 from models import Livre
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
+from chatbot import ChatbotIntelligent  # Import depuis chatbot.py
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+
 matplotlib.use('TkAgg')
 
 # Configuration du thème
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# ==================== POPUP AJOUT/MODIFICATION ====================
+
+# ==================== POPUPS AJOUT/MODIFICATION ====================
 
 class AjouterLivreDialog(ctk.CTkToplevel):
     def __init__(self, parent, callback):
         super().__init__(parent)
         self.callback = callback
-        self.title("📖 Ajouter un nouveau livre")
+        self.title("📖 Ajouter un livre")
         self.geometry("500x550")
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
         
-        self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
         y = parent.winfo_y() + (parent.winfo_height() - 550) // 2
         self.geometry(f"+{x}+{y}")
         self.setup_ui()
     
     def setup_ui(self):
-        title = ctk.CTkLabel(self, text="➕ NOUVEAU LIVRE", font=ctk.CTkFont(size=22, weight="bold"))
-        title.pack(pady=20)
+        ctk.CTkLabel(self, text="➕ NOUVEAU LIVRE", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=20)
         
         form = ctk.CTkFrame(self)
         form.pack(padx=30, pady=10, fill="both", expand=True)
         
         ctk.CTkLabel(form, text="Titre *", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        self.entry_titre = ctk.CTkEntry(form, width=300, placeholder_text="Titre du livre")
+        self.entry_titre = ctk.CTkEntry(form, width=300)
         self.entry_titre.grid(row=0, column=1, padx=10, pady=10)
         
         ctk.CTkLabel(form, text="Auteur *", font=ctk.CTkFont(weight="bold")).grid(row=1, column=0, padx=10, pady=10, sticky="w")
-        self.entry_auteur = ctk.CTkEntry(form, width=300, placeholder_text="Nom de l'auteur")
+        self.entry_auteur = ctk.CTkEntry(form, width=300)
         self.entry_auteur.grid(row=1, column=1, padx=10, pady=10)
         
         ctk.CTkLabel(form, text="Catégorie", font=ctk.CTkFont(weight="bold")).grid(row=2, column=0, padx=10, pady=10, sticky="w")
-        self.combo_categorie = ctk.CTkComboBox(form, values=["Roman", "Science", "Histoire", "Informatique", "Polar", "Fantasy", "Autre"], width=300)
+        self.combo_categorie = ctk.CTkComboBox(form, values=["Roman", "Science", "Histoire", "Informatique", "Polar", "Fantasy"], width=300)
         self.combo_categorie.set("Roman")
         self.combo_categorie.grid(row=2, column=1, padx=10, pady=10)
         
@@ -70,21 +72,20 @@ class AjouterLivreDialog(ctk.CTkToplevel):
         
         btn_frame = ctk.CTkFrame(self)
         btn_frame.pack(pady=20)
-        
-        ctk.CTkButton(btn_frame, text="✓ AJOUTER", command=self.ajouter, fg_color="#2ecc71", hover_color="#27ae60", width=120, height=40).pack(side="left", padx=10)
-        ctk.CTkButton(btn_frame, text="✗ ANNULER", command=self.destroy, fg_color="#e74c3c", hover_color="#c0392b", width=120, height=40).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="✓ AJOUTER", command=self.ajouter, fg_color="#2ecc71", width=120).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="✗ ANNULER", command=self.destroy, fg_color="#e74c3c", width=120).pack(side="left", padx=10)
     
     def ajouter(self):
         titre = self.entry_titre.get().strip()
         auteur = self.entry_auteur.get().strip()
         if not titre or not auteur:
-            messagebox.showerror("Erreur", "Le titre et l'auteur sont obligatoires")
+            messagebox.showerror("Erreur", "Titre et auteur requis")
             return
         try:
             annee = int(self.entry_annee.get()) if self.entry_annee.get() else 2000
             quantite = int(self.entry_quantite.get()) if self.entry_quantite.get() else 1
         except ValueError:
-            messagebox.showerror("Erreur", "L'année et la quantité doivent être des nombres")
+            messagebox.showerror("Erreur", "Année et quantité doivent être des nombres")
             return
         livre = Livre(titre=titre, auteur=auteur, categorie=self.combo_categorie.get(),
                      annee_publication=annee, quantite_disponible=quantite, statut=self.combo_statut.get())
@@ -103,15 +104,13 @@ class ModifierLivreDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
         
-        self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
         y = parent.winfo_y() + (parent.winfo_height() - 550) // 2
         self.geometry(f"+{x}+{y}")
         self.setup_ui()
     
     def setup_ui(self):
-        title = ctk.CTkLabel(self, text=f"✏️ MODIFIER - ID {self.livre.id_livre}", font=ctk.CTkFont(size=20, weight="bold"))
-        title.pack(pady=20)
+        ctk.CTkLabel(self, text=f"✏️ MODIFIER - ID {self.livre.id_livre}", font=ctk.CTkFont(size=20, weight="bold")).pack(pady=20)
         
         form = ctk.CTkFrame(self)
         form.pack(padx=30, pady=10, fill="both", expand=True)
@@ -127,7 +126,7 @@ class ModifierLivreDialog(ctk.CTkToplevel):
         self.entry_auteur.grid(row=1, column=1, padx=10, pady=10)
         
         ctk.CTkLabel(form, text="Catégorie", font=ctk.CTkFont(weight="bold")).grid(row=2, column=0, padx=10, pady=10, sticky="w")
-        self.combo_categorie = ctk.CTkComboBox(form, values=["Roman", "Science", "Histoire", "Informatique", "Polar", "Fantasy", "Autre"], width=300)
+        self.combo_categorie = ctk.CTkComboBox(form, values=["Roman", "Science", "Histoire", "Informatique", "Polar", "Fantasy"], width=300)
         self.combo_categorie.set(self.livre.categorie)
         self.combo_categorie.grid(row=2, column=1, padx=10, pady=10)
         
@@ -148,9 +147,8 @@ class ModifierLivreDialog(ctk.CTkToplevel):
         
         btn_frame = ctk.CTkFrame(self)
         btn_frame.pack(pady=20)
-        
-        ctk.CTkButton(btn_frame, text="💾 VALIDER", command=self.valider, fg_color="#3498db", hover_color="#2980b9", width=120, height=40).pack(side="left", padx=10)
-        ctk.CTkButton(btn_frame, text="✗ ANNULER", command=self.destroy, fg_color="#95a5a6", hover_color="#7f8c8d", width=120, height=40).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="💾 VALIDER", command=self.valider, fg_color="#3498db", width=120).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="✗ ANNULER", command=self.destroy, fg_color="#95a5a6", width=120).pack(side="left", padx=10)
     
     def valider(self):
         modifications = {}
@@ -183,194 +181,258 @@ class ModifierLivreDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-# ==================== CHATBOT GEMINI - 100% IA ====================
+# ==================== DASHBOARD AMÉLIORÉ ====================
 
-import google.generativeai as genai
-from config import get_api_key
-
-class ChatbotIntelligent:
-    def __init__(self, db):
-        self.db = db
-        self.historique = []
-        self.gemini_available = False
-        
-        try:
-            api_key = get_api_key()
-            if not api_key:
-                print("❌ Clé API non trouvée dans .env")
-                return
-            
-            genai.configure(api_key=api_key)
-            
-            # Lister les modèles disponibles
-            print("🔍 Recherche des modèles disponibles...")
-            modeles_disponibles = []
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    modeles_disponibles.append(m.name)
-                    print(f"  - {m.name}")
-            
-            # Choisir le meilleur modèle disponible
-            modele_choisi = None
-            for m in ['models/gemini-1.0-pro', 'models/gemini-pro', 'gemini-1.0-pro']:
-                if m in modeles_disponibles or m.replace('models/', '') in modeles_disponibles:
-                    modele_choisi = m
-                    break
-            
-            if not modele_choisi and modeles_disponibles:
-                modele_choisi = modeles_disponibles[0]
-            
-            if modele_choisi:
-                self.model = genai.GenerativeModel(modele_choisi)
-                print(f"✅ Gemini activé avec: {modele_choisi}")
-                self.gemini_available = True
-            else:
-                print("❌ Aucun modèle Gemini trouvé")
-                
-        except Exception as e:
-            print(f"❌ Erreur: {e}")
-    
-    def get_contexte(self):
-        """Retourne tous les livres formatés"""
-        livres = self.db.afficher_tous_les_livres()
-        if not livres:
-            return "Aucun livre dans la bibliothèque."
-        
-        texte = "📚 BIBLIOTHÈQUE:\n"
-        for livre in livres:
-            texte += f"• ID:{livre.id_livre} | {livre.titre} | {livre.auteur} | {livre.categorie} | {livre.statut}\n"
-        return texte
-    
-    def get_reponse(self, message):
-        """100% Gemini"""
-        
-        if not self.gemini_available:
-            return self.get_reponse_secours(message)
-        
-        self.historique.append(f"User: {message}")
-        if len(self.historique) > 10:
-            self.historique = self.historique[-10:]
-        
-        contexte = self.get_contexte()
-        
-        prompt = f"""Tu es un assistant de bibliothèque amical. Voici tous les livres :
-
-{contexte}
-
-Règles :
-- Réponds UNIQUEMENT avec les livres listés
-- Utilise des émojis
-- Réponds en français, naturellement
-
-Question : {message}
-
-Réponse :"""
-
-        try:
-            response = self.model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            print(f"Erreur: {e}")
-            return self.get_reponse_secours(message)
-    
-    def get_reponse_secours(self, message):
-        """Mode secours basé sur la base de données"""
-        message_lower = message.lower()
-        livres = self.db.afficher_tous_les_livres()
-        
-        # Livres disponibles
-        if "disponible" in message_lower:
-            dispo = [l for l in livres if l.statut == "disponible"]
-            if dispo:
-                reponse = "📚 **Livres disponibles :**\n\n"
-                for l in dispo[:15]:
-                    reponse += f"✅ *{l.titre}* – {l.auteur}\n"
-                return reponse
-        
-        # Recherche par ID
-        import re
-        numbers = re.findall(r'\d+', message)
-        if numbers:
-            for num in numbers:
-                livre = self.db.rechercher_par_id(int(num))
-                if livre:
-                    return f"✅ ID {num}: {livre.titre} par {livre.auteur} - {livre.statut}"
-        
-        # Recherche par auteur
-        for livre in livres:
-            if livre.auteur.lower() in message_lower:
-                return f"📚 Livres de {livre.auteur} : " + ", ".join([l.titre for l in self.db.rechercher_par_auteur(livre.auteur)])
-        
-        # Recherche par titre
-        for livre in livres:
-            if livre.titre.lower() in message_lower:
-                return f"📖 {livre.titre} - {livre.auteur} ({livre.statut})"
-        
-        return "🤖 Je n'ai pas compris. Tapez 'livres disponibles' pour voir le catalogue."
 class DashboardStatistiques(ctk.CTkToplevel):
     def __init__(self, parent, db):
         super().__init__(parent)
         self.db = db
-        self.title("📊 Dashboard - Statistiques")
-        self.geometry("900x700")
+        self.title("📊 Dashboard - Statistiques et Emprunts")
+        self.geometry("1000x750")
         self.transient(parent)
+        
+        # Style
+        self.configure(fg_color="#0f0f1a")
         
         self.setup_ui()
         self.creer_graphiques()
+        self.afficher_emprunteurs()
     
     def setup_ui(self):
-        btn_export = ctk.CTkButton(self, text="📁 EXPORT CSV", command=self.exporter_csv,
-                                   fg_color="#2ecc71", hover_color="#27ae60")
-        btn_export.pack(pady=10)
+        """Interface du dashboard"""
         
-        self.frame_graph = ctk.CTkFrame(self)
+        # En-tête
+        header = ctk.CTkFrame(self, height=50, fg_color="#1a1a2e")
+        header.pack(fill="x", padx=10, pady=(10, 5))
+        
+        ctk.CTkLabel(header, text="📊 DASHBOARD", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=20)
+        
+        # Bouton rafraîchir
+        btn_refresh = ctk.CTkButton(header, text="🔄 RAFRAÎCHIR", command=self.rafraichir,
+                                   fg_color="#3498db", hover_color="#2980b9", width=120)
+        btn_refresh.pack(side="right", padx=10)
+        
+        # Bouton export
+        btn_export = ctk.CTkButton(header, text="📁 EXPORT CSV", command=self.exporter_csv,
+                                   fg_color="#2ecc71", hover_color="#27ae60", width=120)
+        btn_export.pack(side="right", padx=10)
+        
+        # Conteneur principal avec deux colonnes
+        main_container = ctk.CTkFrame(self, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        main_container.grid_columnconfigure(0, weight=2)
+        main_container.grid_columnconfigure(1, weight=1)
+        main_container.grid_rowconfigure(0, weight=1)
+        
+        # Colonne gauche : Graphiques
+        left_frame = ctk.CTkFrame(main_container, fg_color="#1e1e2e", corner_radius=15)
+        left_frame.grid(row=0, column=0, padx=(0, 5), sticky="nsew")
+        
+        ctk.CTkLabel(left_frame, text="📈 STATISTIQUES GRAPHIQUES", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        
+        self.frame_graph = ctk.CTkFrame(left_frame, fg_color="transparent")
         self.frame_graph.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Colonne droite : Emprunteurs
+        right_frame = ctk.CTkFrame(main_container, fg_color="#1e1e2e", corner_radius=15)
+        right_frame.grid(row=0, column=1, padx=(5, 0), sticky="nsew")
+        
+        ctk.CTkLabel(right_frame, text="👥 PERSONNES AYANT EMPRUNTÉ", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        
+        # Zone de texte pour la liste des emprunteurs
+        self.emprunteurs_text = scrolledtext.ScrolledText(
+            right_frame, 
+            wrap="word",
+            font=("Segoe UI", 12),
+            bg="#1e1e2e",
+            fg="#ffffff",
+            relief="flat",
+            borderwidth=0,
+            height=20
+        )
+        self.emprunteurs_text.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Configuration des couleurs des tags
+        self.emprunteurs_text.tag_config("title", foreground="#f39c12", font=("Segoe UI", 14, "bold"))
+        self.emprunteurs_text.tag_config("name", foreground="#2ecc71", font=("Segoe UI", 11, "bold"))
+        self.emprunteurs_text.tag_config("book", foreground="#3498db")
+        self.emprunteurs_text.tag_config("date", foreground="#9b59b6")
+        self.emprunteurs_text.tag_config("warning", foreground="#e74c3c")
+        
+        # Pied de page avec infos
+        footer = ctk.CTkFrame(self, height=40, fg_color="#1a1a2e")
+        footer.pack(fill="x", padx=10, pady=(5, 10))
+        
+        self.footer_label = ctk.CTkLabel(footer, text="", font=ctk.CTkFont(size=12))
+        self.footer_label.pack(pady=10)
+    
+    def rafraichir(self):
+        """Rafraîchit les données du dashboard"""
+        # Re-créer les graphiques
+        self.frame_graph.destroy()
+        self.frame_graph = ctk.CTkFrame(self.frame_graph.master, fg_color="transparent")
+        self.frame_graph.pack(fill="both", expand=True, padx=10, pady=10)
+        self.creer_graphiques()
+        
+        # Re-afficher la liste des emprunteurs
+        self.emprunteurs_text.config(state="normal")
+        self.emprunteurs_text.delete("1.0", "end")
+        self.afficher_emprunteurs()
+        
+        messagebox.showinfo("Rafraîchissement", "Les données ont été mises à jour !")
     
     def creer_graphiques(self):
+        """Crée les graphiques avec des couleurs lisibles"""
         stats = self.db.get_statistiques()
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+        # Style des graphiques
+        plt.style.use('dark_background')
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 5))
         fig.patch.set_facecolor('#1e1e2e')
         
-        statuts = ['disponibles', 'empruntés', 'réservés']
+        # Graphique 1: Répartition par statut
+        statuts = ['Disponibles', 'Empruntés', 'Réservés']
         valeurs = [stats['disponibles'], stats['empruntes'], stats['reserves']]
         couleurs = ['#2ecc71', '#e74c3c', '#f39c12']
-        ax1.pie(valeurs, labels=statuts, colors=couleurs, autopct='%1.1f%%', startangle=90)
-        ax1.set_title('Répartition par statut', color='white')
+        explode = (0.05, 0.05, 0.05)
+        
+        wedges, texts, autotexts = ax1.pie(valeurs, labels=statuts, colors=couleurs, 
+                                            autopct='%1.1f%%', startangle=90, explode=explode)
+        
+        # Personnaliser les couleurs du texte
+        for text in texts:
+            text.set_color('white')
+            text.set_fontsize(11)
+            text.set_fontweight('bold')
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontsize(10)
+            autotext.set_fontweight('bold')
+        
+        ax1.set_title('Répartition par statut', color='white', fontsize=14, fontweight='bold')
         ax1.set_facecolor('#1e1e2e')
         
+        # Graphique 2: Top 5 catégories
         categories = list(stats['categories'].items())[:5]
-        noms = [c[0][:12] for c in categories]
+        noms = [c[0][:15] for c in categories]
         counts = [c[1] for c in categories]
-        bars = ax2.bar(noms, counts, color='#9b59b6')
-        ax2.set_title('Top 5 catégories', color='white')
-        ax2.set_xlabel('Catégories', color='white')
-        ax2.set_ylabel('Nombre de livres', color='white')
+        
+        bars = ax2.bar(noms, counts, color='#9b59b6', edgecolor='white', linewidth=1)
+        ax2.set_title('Top 5 catégories', color='white', fontsize=14, fontweight='bold')
+        ax2.set_xlabel('Catégories', color='white', fontsize=11)
+        ax2.set_ylabel('Nombre de livres', color='white', fontsize=11)
         ax2.tick_params(colors='white')
         ax2.set_facecolor('#1e1e2e')
+        ax2.spines['bottom'].set_color('white')
+        ax2.spines['left'].set_color('white')
+        
+        # Ajouter les valeurs sur les barres
         for bar, val in zip(bars, counts):
-            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, str(val), ha='center', color='white')
+            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
+                    str(val), ha='center', color='white', fontsize=11, fontweight='bold')
         
         fig.tight_layout()
         
+        # Intégrer dans Tkinter
         canvas = FigureCanvasTkAgg(fig, master=self.frame_graph)
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True)
         
-        info_text = f"""
-📊 STATISTIQUES GÉNÉRALES:
-• Total livres: {stats['total']}
-• Année moyenne: {stats['annee_moyenne']}
-• Plus ancien: {stats['plus_ancien'].titre if stats['plus_ancien'] else 'N/A'}
-• Plus récent: {stats['plus_recent'].titre if stats['plus_recent'] else 'N/A'}
-        """
-        label_info = ctk.CTkLabel(self, text=info_text, font=ctk.CTkFont(size=12), justify="left")
-        label_info.pack(pady=10)
+        # Mettre à jour le footer
+        self.footer_label.configure(
+            text=f"📅 Année moyenne: {stats['annee_moyenne']} | "
+                 f"🏛️ Plus ancien: {stats['plus_ancien'].titre if stats['plus_ancien'] else 'N/A'} | "
+                 f"🆕 Plus récent: {stats['plus_recent'].titre if stats['plus_recent'] else 'N/A'}"
+        )
+    
+    def afficher_emprunteurs(self):
+        """Affiche la liste des personnes qui ont emprunté des livres"""
+        
+        # Vider le texte
+        self.emprunteurs_text.config(state="normal")
+        self.emprunteurs_text.delete("1.0", "end")
+        
+        # Récupérer les emprunts
+        emprunts = self.db.lister_emprunts_en_cours()
+        
+        if not emprunts:
+            self.emprunteurs_text.insert("end", "📭 Aucun emprunt en cours\n\n", "title")
+            self.emprunteurs_text.insert("end", "Aucune personne n'a actuellement de livre emprunté.", "name")
+            self.emprunteurs_text.config(state="disabled")
+            return
+        
+        # En-tête
+        self.emprunteurs_text.insert("end", f"📋 {len(emprunts)} emprunt(s) en cours\n\n", "title")
+        
+        # Afficher chaque emprunteur
+        for i, emprunt in enumerate(emprunts, 1):
+            # Vérifier si le livre est en retard
+            est_en_retard = False
+            if emprunt.get('date_retour'):
+                try:
+                    from datetime import datetime
+                    date_retour = datetime.strptime(emprunt['date_retour'], "%d/%m/%Y")
+                    est_en_retard = date_retour < datetime.now()
+                except:
+                    pass
+            
+            # Nom de l'emprunteur avec indicateur de retard
+            if est_en_retard:
+                self.emprunteurs_text.insert("end", f"{i}. ⚠️ ", "warning")
+                self.emprunteurs_text.insert("end", f"{emprunt['emprunteur']}\n", "name")
+            else:
+                self.emprunteurs_text.insert("end", f"{i}. 👤 ", "name")
+                self.emprunteurs_text.insert("end", f"{emprunt['emprunteur']}\n", "name")
+            
+            # Livre emprunté
+            self.emprunteurs_text.insert("end", f"   📖 Livre: ", "book")
+            self.emprunteurs_text.insert("end", f"{emprunt['titre']}\n", "book")
+            
+            # Date d'emprunt
+            if emprunt.get('date_emprunt'):
+                self.emprunteurs_text.insert("end", f"   📅 Emprunté le: ", "date")
+                self.emprunteurs_text.insert("end", f"{emprunt['date_emprunt']}\n", "date")
+            
+            # Date de retour prévue
+            if emprunt.get('date_retour'):
+                self.emprunteurs_text.insert("end", f"   ⏰ Retour prévu: ", "date")
+                if est_en_retard:
+                    self.emprunteurs_text.insert("end", f"{emprunt['date_retour']} ⚠️ EN RETARD\n\n", "warning")
+                else:
+                    self.emprunteurs_text.insert("end", f"{emprunt['date_retour']}\n\n", "date")
+            else:
+                self.emprunteurs_text.insert("end", "\n", "date")
+        
+        # Statistiques supplémentaires
+        total_emprunteurs = len(set([e['emprunteur'] for e in emprunts]))
+        self.emprunteurs_text.insert("end", "━" * 40 + "\n", "date")
+        self.emprunteurs_text.insert("end", f"📊 Total emprunteurs uniques: {total_emprunteurs}\n", "title")
+        
+        self.emprunteurs_text.config(state="disabled")
     
     def exporter_csv(self):
-        message = self.db.exporter_csv("dashboard_export.csv")
-        messagebox.showinfo("Export", f"Données exportées vers dashboard_export.csv")
+        """Exporte les données en CSV"""
+        try:
+            # Exporter les statistiques
+            self.db.exporter_csv("dashboard_stats.csv")
+            
+            # Exporter les emprunts
+            self.db.exporter_emprunts_csv("dashboard_emprunts.csv")
+            
+            messagebox.showinfo("Export", 
+                "✅ Données exportées avec succès !\n\n"
+                "📁 dashboard_stats.csv - Statistiques des livres\n"
+                "📁 dashboard_emprunts.csv - Liste des emprunteurs"
+            )
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'export: {e}")
 
+
+# ==================== APPLICATION PRINCIPALE ====================
 
 # ==================== APPLICATION PRINCIPALE ====================
 
@@ -382,24 +444,23 @@ class BibliothequeApp:
         
         self.db = BibliothequeDB()
         self.chatbot = ChatbotIntelligent(self.db)
+        self.livre_selectionne = None
         
         self.setup_ui()
         self.rafraichir_liste()
-        
         self.root.mainloop()
     
     def setup_ui(self):
+        # Barre d'outils
         toolbar = ctk.CTkFrame(self.root, height=50, fg_color="#1a1a2e")
         toolbar.pack(fill="x", padx=10, pady=(10, 5))
         toolbar.pack_propagate(False)
         
-        title_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
-        title_frame.pack(side="left", padx=20)
-        ctk.CTkLabel(title_frame, text="📚", font=ctk.CTkFont(size=28)).pack(side="left")
-        ctk.CTkLabel(title_frame, text="BIBLIOTHÈQUE INTELLIGENTE", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left", padx=10)
+        ctk.CTkLabel(toolbar, text="📚", font=ctk.CTkFont(size=28)).pack(side="left", padx=20)
+        ctk.CTkLabel(toolbar, text="BIBLIOTHÈQUE INTELLIGENTE", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
         
         self.stats_label = ctk.CTkLabel(toolbar, text="📊 0 livres", font=ctk.CTkFont(size=12), text_color="#888")
-        self.stats_label.pack(side="left", padx=10)
+        self.stats_label.pack(side="left", padx=20)
         
         btn_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
         btn_frame.pack(side="right", padx=10)
@@ -410,8 +471,16 @@ class BibliothequeApp:
         ctk.CTkButton(btn_frame, text="📤 EMPRUNTER", command=self.ouvrir_emprunt, fg_color="#f39c12", height=35, width=80).pack(side="left", padx=2)
         ctk.CTkButton(btn_frame, text="📥 RETOUR", command=self.ouvrir_retour, fg_color="#1abc9c", height=35, width=80).pack(side="left", padx=2)
         ctk.CTkButton(btn_frame, text="📊 DASHBOARD", command=self.ouvrir_dashboard, fg_color="#9b59b6", height=35, width=80).pack(side="left", padx=2)
-        ctk.CTkButton(btn_frame, text="💾 BACKUP", command=self.faire_backup, fg_color="#2c3e50", height=35, width=70).pack(side="left", padx=2)
         
+        btn_backup = ctk.CTkButton(btn_frame, text="💾 BACKUP", command=self.faire_backup, 
+                                fg_color="#2c3e50", hover_color="#1a252f", height=35, width=70)
+        btn_backup.pack(side="left", padx=2)
+
+        btn_restore = ctk.CTkButton(btn_frame, text="🔄 RESTORE", command=self.restaurer_backup, 
+                                    fg_color="#e67e22", hover_color="#d35400", height=35, width=70)
+        btn_restore.pack(side="left", padx=2)
+        
+        # Recherche
         search_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
         search_frame.pack(side="right", padx=20)
         
@@ -421,64 +490,44 @@ class BibliothequeApp:
         ctk.CTkButton(search_frame, text="Chercher", command=self.rechercher, width=60).pack(side="left", padx=2)
         ctk.CTkButton(search_frame, text="Tous", command=self.rafraichir_liste, width=50).pack(side="left", padx=2)
         
-        filter_menu = ctk.CTkOptionMenu(search_frame, values=["Filtrer...", "Par catégorie", "Emprunts", "Retards"],
-                                        command=self.gestion_filtres, width=100)
-        filter_menu.pack(side="left", padx=5)
-        
+        # Onglets
         self.tabview = ctk.CTkTabview(self.root)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
         
         tab_catalogue = self.tabview.add("📚 CATALOGUE")
         tab_chatbot = self.tabview.add("🤖 CHATBOT")
         
-        # ==================== TABLEAU AVEC TREEVIEW ====================
-        # Frame pour le tableau avec Treeview
+        # Tableau des livres
         tree_frame = ctk.CTkFrame(tab_catalogue, fg_color="#0f0f1a")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Création du Treeview
-        self.tree = ttk.Treeview(tree_frame, style="Custom.Treeview", selectmode="extended")
-        
-        # Style pour le Treeview
+        self.tree = ttk.Treeview(tree_frame, selectmode="browse")
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Custom.Treeview", 
-                       background="#1e1e2e",
-                       foreground="#ecf0f1",
-                       fieldbackground="#1e1e2e",
-                       borderwidth=0,
-                       rowheight=35)
-        style.configure("Custom.Treeview.Heading",
-                       background="#1a1a2e",
-                       foreground="white",
-                       font=("Segoe UI", 11, "bold"),
-                       borderwidth=0)
-        style.map("Custom.Treeview", background=[('selected', '#3498db')])
+        style.configure("Treeview", background="#1e1e2e", foreground="white", fieldbackground="#1e1e2e", rowheight=35)
+        style.configure("Treeview.Heading", background="#1a1a2e", foreground="white", font=("Segoe UI", 11, "bold"))
+        style.map("Treeview", background=[('selected', '#3498db')])
         
-        # Configuration des colonnes
         columns = ("ID", "TITRE", "AUTEUR", "CATÉGORIE", "ANNÉE", "QTY", "STATUT")
         self.tree["columns"] = columns
         self.tree["show"] = "headings"
         
-        # Définition des colonnes
         self.tree.column("ID", width=60, anchor="center")
-        self.tree.column("TITRE", width=380, anchor="w")
+        self.tree.column("TITRE", width=400, anchor="w")
         self.tree.column("AUTEUR", width=200, anchor="w")
         self.tree.column("CATÉGORIE", width=130, anchor="w")
         self.tree.column("ANNÉE", width=70, anchor="center")
         self.tree.column("QTY", width=60, anchor="center")
         self.tree.column("STATUT", width=110, anchor="center")
         
-        # En-têtes
-        self.tree.heading("ID", text="ID", command=lambda: self.trier_par_colonne("ID"))
-        self.tree.heading("TITRE", text="TITRE", command=lambda: self.trier_par_colonne("TITRE"))
-        self.tree.heading("AUTEUR", text="AUTEUR", command=lambda: self.trier_par_colonne("AUTEUR"))
-        self.tree.heading("CATÉGORIE", text="CATÉGORIE", command=lambda: self.trier_par_colonne("CATÉGORIE"))
-        self.tree.heading("ANNÉE", text="ANNÉE", command=lambda: self.trier_par_colonne("ANNÉE"))
-        self.tree.heading("QTY", text="QTY", command=lambda: self.trier_par_colonne("QTY"))
-        self.tree.heading("STATUT", text="STATUT", command=lambda: self.trier_par_colonne("STATUT"))
+        self.tree.heading("ID", text="ID")
+        self.tree.heading("TITRE", text="TITRE")
+        self.tree.heading("AUTEUR", text="AUTEUR")
+        self.tree.heading("CATÉGORIE", text="CATÉGORIE")
+        self.tree.heading("ANNÉE", text="ANNÉE")
+        self.tree.heading("QTY", text="QTY")
+        self.tree.heading("STATUT", text="STATUT")
         
-        # Scrollbars
         scroll_y = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         scroll_x = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
@@ -487,17 +536,9 @@ class BibliothequeApp:
         scroll_y.pack(side="right", fill="y")
         scroll_x.pack(side="bottom", fill="x")
         
-        # Bind pour la sélection
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
         
-        # Info sélection
-        info_frame = ctk.CTkFrame(tab_catalogue, fg_color="transparent", height=30)
-        info_frame.pack(fill="x", padx=10, pady=(0, 10))
-        self.info_label = ctk.CTkLabel(info_frame, text="💡 Cliquez sur un livre pour le sélectionner", 
-                                       text_color="#666666", font=ctk.CTkFont(size=10))
-        self.info_label.pack()
-        
-        # ==================== CHATBOT ====================
+        # Chatbot
         chat_container = ctk.CTkFrame(tab_chatbot, fg_color="#1e1e2e")
         chat_container.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -516,108 +557,48 @@ class BibliothequeApp:
         self.btn_envoyer = ctk.CTkButton(input_frame, text="ENVOYER", command=self.envoyer_message, fg_color="#9b59b6", height=45)
         self.btn_envoyer.pack(side="right")
         
-        self.afficher_message_bienvenue()
+        self.chat_display.insert("end", "🤖 Bienvenue ! Je suis votre assistant.\n\n", "bot")
+        self.chat_display.insert("end", "💡 Exemples de questions :\n", "bot")
+        self.chat_display.insert("end", "   • 'livres disponibles'\n", "bot")
+        self.chat_display.insert("end", "   • 'ID 2 existe ?'\n", "bot")
+        self.chat_display.insert("end", "   • 'Victor Hugo'\n", "bot")
     
-    def trier_par_colonne(self, col):
-        """Trie le tableau par colonne"""
-        livres = self.db.afficher_tous_les_livres()
-        
-        if col == "ID":
-            livres.sort(key=lambda x: x.id_livre)
-        elif col == "TITRE":
-            livres.sort(key=lambda x: x.titre.lower())
-        elif col == "AUTEUR":
-            livres.sort(key=lambda x: x.auteur.lower())
-        elif col == "CATÉGORIE":
-            livres.sort(key=lambda x: x.categorie.lower())
-        elif col == "ANNÉE":
-            livres.sort(key=lambda x: x.annee_publication)
-        elif col == "QTY":
-            livres.sort(key=lambda x: x.quantite_disponible)
-        elif col == "STATUT":
-            livres.sort(key=lambda x: x.statut)
-        
-        self.afficher_livres_dans_tree(livres)
+    def on_tree_select(self, event):
+        selected = self.tree.selection()
+        if selected:
+            self.livre_selectionne = int(selected[0])
+        else:
+            self.livre_selectionne = None
     
     def afficher_livres_dans_tree(self, livres):
-        """Affiche la liste des livres dans le Treeview"""
-        # Vider le tableau
         for item in self.tree.get_children():
             self.tree.delete(item)
-        
-        # Remplir le tableau
         for livre in livres:
-            # Couleur du statut
-            statut_color = ""
-            if livre.statut == "disponible":
-                statut_text = f"✅ {livre.statut.upper()}"
-            elif livre.statut == "emprunté":
-                statut_text = f"📤 {livre.statut.upper()}"
-            else:
-                statut_text = f"🔒 {livre.statut.upper()}"
-            
+            statut_text = {"disponible": f"✅ {livre.statut.upper()}", 
+                          "emprunté": f"📤 {livre.statut.upper()}", 
+                          "réservé": f"🔒 {livre.statut.upper()}"}.get(livre.statut, livre.statut.upper())
             self.tree.insert("", "end", iid=str(livre.id_livre), values=(
-                livre.id_livre,
-                livre.titre[:50],
-                livre.auteur[:25],
-                livre.categorie[:15],
-                livre.annee_publication,
-                livre.quantite_disponible,
-                statut_text
+                livre.id_livre, livre.titre[:50], livre.auteur[:25], 
+                livre.categorie[:15], livre.annee_publication, 
+                livre.quantite_disponible, statut_text
             ))
-        
-        # Mettre à jour les couleurs des lignes
-        self.update_row_colors()
-        
-        # Statistiques
         total = len(livres)
         dispo = len([l for l in livres if l.statut == "disponible"])
         self.stats_label.configure(text=f"📊 {total} livres • ✅ {dispo} dispo")
     
-    def update_row_colors(self):
-        """Met à jour les couleurs des lignes (alternance)"""
-        for i, item in enumerate(self.tree.get_children()):
-            bg_color = "#2a2a3e" if i % 2 == 0 else "#1e1e2e"
-            self.tree.tag_configure(f"row_{i}", background=bg_color)
-            self.tree.item(item, tags=(f"row_{i}",))
-    
-    def on_tree_select(self, event):
-        """Gère la sélection dans le Treeview"""
-        selected = self.tree.selection()
-        if selected:
-            self.livre_selectionne = selected[0]
-            livre = self.db.rechercher_par_id(int(selected[0]))
-            if livre:
-                self.info_label.configure(text=f"✅ Livre sélectionné : ID {livre.id_livre} - {livre.titre}",
-                                         text_color="#2ecc71")
-        else:
-            self.livre_selectionne = None
-            self.info_label.configure(text="💡 Cliquez sur un livre pour le sélectionner", text_color="#666666")
-    
     def rafraichir_liste(self):
-        """Rafraîchit l'affichage"""
-        livres = self.db.afficher_tous_les_livres()
-        self.afficher_livres_dans_tree(livres)
-    
-    def selectionner_livre(self, row_frame, event=None):
-        """Sélectionne un livre (pour compatibilité)"""
-        pass
+        self.afficher_livres_dans_tree(self.db.afficher_tous_les_livres())
     
     def supprimer_livre(self):
-        """Supprime le livre sélectionné"""
-        if not hasattr(self, 'livre_selectionne') or not self.livre_selectionne:
-            messagebox.showwarning("Attention", "Sélectionnez un livre à supprimer")
+        if not self.livre_selectionne:
+            messagebox.showwarning("Attention", "Sélectionnez un livre")
             return
-        
-        livre = self.db.rechercher_par_id(int(self.livre_selectionne))
-        if messagebox.askyesno("Confirmation", f"Supprimer le livre '{livre.titre}' ?"):
-            self.db.supprimer_livre(livre.id_livre)
+        livre = self.db.rechercher_par_id(self.livre_selectionne)
+        if messagebox.askyesno("Confirmation", f"Supprimer '{livre.titre}' ?"):
+            self.db.supprimer_livre(self.livre_selectionne)
             self.rafraichir_liste()
             self.livre_selectionne = None
-            messagebox.showinfo("Succès", "Livre supprimé !")
-    
-    def supprimer_livres(self):
-        self.supprimer_livre()
+            messagebox.showinfo("Succès", "Livre supprimé")
     
     def ouvrir_ajout(self):
         AjouterLivreDialog(self.root, self.apres_ajout)
@@ -625,111 +606,87 @@ class BibliothequeApp:
     def apres_ajout(self, livre):
         self.db.ajouter_livre(livre)
         self.rafraichir_liste()
-        messagebox.showinfo("Succès", f"Livre '{livre.titre}' ajouté !")
+        messagebox.showinfo("Succès", f"Livre '{livre.titre}' ajouté")
     
     def ouvrir_modification(self):
-        if not hasattr(self, 'livre_selectionne') or not self.livre_selectionne:
-            messagebox.showwarning("Attention", "Sélectionnez un livre à modifier")
+        if not self.livre_selectionne:
+            messagebox.showwarning("Attention", "Sélectionnez un livre")
             return
-        
-        livre = self.db.rechercher_par_id(int(self.livre_selectionne))
+        livre = self.db.rechercher_par_id(self.livre_selectionne)
         ModifierLivreDialog(self.root, livre, self.apres_modification)
     
     def apres_modification(self, id_livre, modifications):
         self.db.modifier_livre(id_livre, **modifications)
         self.rafraichir_liste()
         self.livre_selectionne = None
-        messagebox.showinfo("Succès", "Livre modifié !")
+        messagebox.showinfo("Succès", "Livre modifié")
     
     def ouvrir_emprunt(self):
-        if not hasattr(self, 'livre_selectionne') or not self.livre_selectionne:
-            messagebox.showwarning("Attention", "Sélectionnez un livre à emprunter")
+        if not self.livre_selectionne:
+            messagebox.showwarning("Attention", "Sélectionnez un livre")
             return
-        
-        livre = self.db.rechercher_par_id(int(self.livre_selectionne))
-        
-        if livre.statut == "réservé":
-            messagebox.showwarning(
-                "Impossible", 
-                f"📕 Le livre '{livre.titre}' est **RÉSERVÉ**.\n\n"
-                f"Un livre réservé ne peut pas être emprunté.\n\n"
-                f"💡 Pour l'emprunter, modifiez d'abord son statut en 'disponible'."
-            )
-            return
-        elif livre.statut != "disponible":
-            messagebox.showwarning(
-                "Impossible", 
-                f"📕 Le livre '{livre.titre}' n'est pas disponible.\n\n"
-                f"Statut actuel : {livre.statut.upper()}"
-            )
+        livre = self.db.rechercher_par_id(self.livre_selectionne)
+        if livre.statut != "disponible":
+            messagebox.showwarning("Impossible", f"Ce livre n'est pas disponible (statut: {livre.statut})")
             return
         
         dialog = ctk.CTkToplevel(self.root)
-        dialog.title("📤 Emprunter un livre")
+        dialog.title("Emprunter")
         dialog.geometry("400x300")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 300) // 2
-        dialog.geometry(f"+{x}+{y}")
-        
         ctk.CTkLabel(dialog, text=f"Emprunter : {livre.titre}", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=15)
-        
-        ctk.CTkLabel(dialog, text="Nom de l'emprunteur :").pack()
-        entry_nom = ctk.CTkEntry(dialog, width=250, placeholder_text="Votre nom")
+        ctk.CTkLabel(dialog, text="Nom :").pack()
+        entry_nom = ctk.CTkEntry(dialog, width=250)
         entry_nom.pack(pady=5)
+        ctk.CTkLabel(dialog, text="Durée (jours) :").pack()
+        combo = ctk.CTkComboBox(dialog, values=["7", "14", "21", "30"])
+        combo.set("14")
+        combo.pack(pady=5)
         
-        ctk.CTkLabel(dialog, text="Durée d'emprunt (jours) :").pack()
-        combo_duree = ctk.CTkComboBox(dialog, values=["7", "14", "21", "30"], width=100)
-        combo_duree.set("14")
-        combo_duree.pack(pady=5)
-        
-        def valider_emprunt():
+        def valider():
             nom = entry_nom.get().strip() or "Anonyme"
-            duree = int(combo_duree.get())
-            success, message = self.db.emprunter_livre(livre.id_livre, nom, duree)
-            messagebox.showinfo("Emprunt", message)
-            if success:
-                self.rafraichir_liste()
-                self.livre_selectionne = None
+            duree = int(combo.get())
+            self.db.emprunter_livre(livre.id_livre, nom, duree)
+            self.rafraichir_liste()
+            self.livre_selectionne = None
             dialog.destroy()
+            messagebox.showinfo("Succès", f"Livre emprunté pour {duree} jours")
         
-        ctk.CTkButton(dialog, text="✓ CONFIRMER EMPRUNT", command=valider_emprunt, fg_color="#2ecc71", hover_color="#27ae60", width=200, height=40).pack(pady=20)
+        ctk.CTkButton(dialog, text="CONFIRMER", command=valider, fg_color="#2ecc71").pack(pady=20)
     
     def ouvrir_retour(self):
-        if not hasattr(self, 'livre_selectionne') or not self.livre_selectionne:
-            messagebox.showwarning("Attention", "Sélectionnez un livre à retourner")
+        if not self.livre_selectionne:
+            messagebox.showwarning("Attention", "Sélectionnez un livre")
             return
-        
-        livre = self.db.rechercher_par_id(int(self.livre_selectionne))
-        
-        if livre.statut == "réservé":
-            messagebox.showwarning(
-                "Impossible", 
-                f"📕 Le livre '{livre.titre}' est **RÉSERVÉ**.\n\n"
-                f"Un livre réservé ne peut pas être retourné car il n'est pas emprunté."
-            )
+        livre = self.db.rechercher_par_id(self.livre_selectionne)
+        if livre.statut != "emprunté":
+            messagebox.showwarning("Impossible", "Ce livre n'est pas emprunté")
             return
-        elif livre.statut != "emprunté":
-            messagebox.showwarning(
-                "Impossible", 
-                f"📕 Le livre '{livre.titre}' n'est pas emprunté.\n\n"
-                f"Statut actuel : {livre.statut.upper()}"
-            )
-            return
-        
-        if messagebox.askyesno("Confirmation", f"Confirmer le retour de '{livre.titre}' ?"):
-            success, message = self.db.retourner_livre(livre.id_livre)
-            messagebox.showinfo("Retour", message)
-            if success:
-                self.rafraichir_liste()
-                self.livre_selectionne = None
+        if messagebox.askyesno("Confirmation", f"Retour de '{livre.titre}' ?"):
+            self.db.retourner_livre(livre.id_livre)
+            self.rafraichir_liste()
+            self.livre_selectionne = None
+            messagebox.showinfo("Succès", "Livre retourné")
     
-    def afficher_message_bienvenue(self):
-        self.chat_display.insert("end", "🤖 Bienvenue ! Posez-moi des questions sur les livres.\n", "bot")
+    def ouvrir_dashboard(self):
+        DashboardStatistiques(self.root, self.db)
     
+    def faire_backup(self):
+        msg = self.db.backup_database()
+        messagebox.showinfo("Backup", msg)
+
+    def restaurer_backup(self):
+        """Restaure une sauvegarde sélectionnée par l'utilisateur"""
+        success, message = self.db.restaurer_backup_interactif()
+        if success:
+            self.rafraichir_liste()
+            self.livre_selectionne = None
+            messagebox.showinfo("Succès", message)
+        else:
+            messagebox.showerror("Erreur", message)
+
     def envoyer_message(self):
         message = self.entry_chat.get().strip()
         if not message:
@@ -741,95 +698,77 @@ class BibliothequeApp:
         self.chat_display.insert("end", f"🤖 {reponse}\n", "bot")
         self.chat_display.see("end")
     
-    def gestion_filtres(self, choix):
-        if choix == "Par catégorie":
-            self.filtrer_par_categorie()
-        elif choix == "Emprunts":
-            self.afficher_emprunts()
-        elif choix == "Retards":
-            self.afficher_retards()
-    
-    def ouvrir_dashboard(self):
-        DashboardStatistiques(self.root, self.db)
-    
-    def afficher_emprunts(self):
-        emprunts = self.db.lister_emprunts_en_cours()
-        if not emprunts:
-            messagebox.showinfo("Emprunts", "Aucun emprunt en cours")
+    def rechercher(self):
+        terme = self.entry_recherche.get().strip()
+        if not terme:
+            self.rafraichir_liste()
             return
-        texte = "📤 **LISTE DES EMPRUNTS EN COURS**\n\n"
-        for e in emprunts:
-            texte += f"ID {e['id']} : {e['titre']}\n   👤 {e['emprunteur']}\n   📅 Retour : {e['date_retour']}\n\n"
-        messagebox.showinfo("Emprunts en cours", texte)
+        resultats = []
+        if terme.isdigit():
+            l = self.db.rechercher_par_id(int(terme))
+            if l:
+                resultats.append(l)
+        else:
+            resultats = self.db.rechercher_par_titre(terme)
+            for l in self.db.rechercher_par_auteur(terme):
+                if l not in resultats:
+                    resultats.append(l)
+        self.afficher_livres_dans_tree(resultats)
+        if not resultats:
+            messagebox.showinfo("Résultat", f"Aucun résultat pour '{terme}'")
+
+
+if __name__ == "__main__":
+    print("="*60)
+    print("📚 BIBLIOTHÈQUE INTELLIGENTE")
+    print("="*60)
+    app = BibliothequeApp()
     
-    def afficher_retards(self):
-        retards = self.db.verifier_retards()
-        if not retards:
-            messagebox.showinfo("Retards", "Aucun livre en retard !")
+def restaurer_backup(self):   # <-- AJOUTE CETTE MÉTHODE ICI
+    """Restaure une sauvegarde sélectionnée par l'utilisateur"""
+    success, message = self.db.restaurer_backup_interactif()
+    if success:
+        self.rafraichir_liste()
+        self.livre_selectionne = None
+        messagebox.showinfo("Succès", message)
+    else:
+        messagebox.showerror("Erreur", message)
+
+
+
+    def envoyer_message(self):
+        message = self.entry_chat.get().strip()
+        if not message:
             return
-        texte = "⚠️ **LIVRES EN RETARD** ⚠️\n\n"
-        for r in retards:
-            texte += f"ID {r['id']} : {r['titre']}\n   👤 {r['emprunteur']}\n   ⏰ Retard depuis le {r['date_retour']}\n\n"
-        messagebox.showwarning("Livres en retard", texte)
-    
-    def faire_backup(self):
-        message = self.db.backup_database()
-        messagebox.showinfo("Sauvegarde", message)
-    
-    def filtrer_par_categorie(self):
-        categories = self.db.get_toutes_categories()
-        if not categories:
-            messagebox.showinfo("Info", "Aucune catégorie disponible")
-            return
-        
-        dialog = ctk.CTkToplevel(self.root)
-        dialog.title("Filtrer par catégorie")
-        dialog.geometry("350x200")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        ctk.CTkLabel(dialog, text="Choisissez une catégorie :", font=ctk.CTkFont(weight="bold")).pack(pady=20)
-        combo = ctk.CTkComboBox(dialog, values=categories, width=250)
-        combo.pack(pady=10)
-        
-        def appliquer_filtre():
-            categorie = combo.get()
-            livres_filtres = self.db.filtrer_par_categorie(categorie)
-            if livres_filtres:
-                self.afficher_livres_dans_tree(livres_filtres)
-            else:
-                messagebox.showinfo("Résultats", f"Aucun livre dans la catégorie '{categorie}'")
-            dialog.destroy()
-        
-        ctk.CTkButton(dialog, text="APPLIQUER", command=appliquer_filtre, fg_color="#3498db").pack(pady=20)
+        self.chat_display.insert("end", f"\n👤 {message}\n", "user")
+        self.entry_chat.delete(0, "end")
+        self.root.update()
+        reponse = self.chatbot.get_reponse(message)
+        self.chat_display.insert("end", f"🤖 {reponse}\n", "bot")
+        self.chat_display.see("end")
     
     def rechercher(self):
         terme = self.entry_recherche.get().strip()
         if not terme:
             self.rafraichir_liste()
             return
-        
         resultats = []
         if terme.isdigit():
-            livre = self.db.rechercher_par_id(int(terme))
-            if livre:
-                resultats.append(livre)
+            l = self.db.rechercher_par_id(int(terme))
+            if l:
+                resultats.append(l)
         else:
             resultats = self.db.rechercher_par_titre(terme)
             for l in self.db.rechercher_par_auteur(terme):
                 if l not in resultats:
                     resultats.append(l)
-        
-        if resultats:
-            self.afficher_livres_dans_tree(resultats)
-        else:
-            self.afficher_livres_dans_tree([])
-            messagebox.showinfo("Résultats", f"Aucun résultat pour '{terme}'")
+        self.afficher_livres_dans_tree(resultats)
+        if not resultats:
+            messagebox.showinfo("Résultat", f"Aucun résultat pour '{terme}'")
 
 
 if __name__ == "__main__":
     print("="*60)
-    print("📚 BIBLIOTHÈQUE INTELLIGENTE - PROJET SEMESTRIEL")
+    print("📚 BIBLIOTHÈQUE INTELLIGENTE")
     print("="*60)
-    print("🚀 Lancement de l'application...")
     app = BibliothequeApp()

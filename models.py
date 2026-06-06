@@ -1,4 +1,3 @@
-
 class Livre:
     """
     Classe représentant un livre dans la bibliothèque.

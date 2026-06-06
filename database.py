@@ -201,14 +201,16 @@ class BibliothequeDB:
         return True, f"✅ Livre '{titre}' retourné avec succès ! Merci !"
     
     def lister_emprunts_en_cours(self):
-        """Liste tous les livres actuellement empruntés"""
+        """Liste tous les livres actuellement empruntés (basé sur champ emprunteur)"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Récupérer tous les livres qui ont un emprunteur (peu importe le statut)
         cursor.execute('''
             SELECT id_livre, titre, auteur, date_retour_prevue, date_emprunt, emprunteur
             FROM livres 
-            WHERE statut = 'emprunté'
+            WHERE emprunteur IS NOT NULL 
+            AND emprunteur != ''
             ORDER BY date_retour_prevue
         ''')
         
@@ -237,7 +239,9 @@ class BibliothequeDB:
         cursor.execute('''
             SELECT id_livre, titre, auteur, date_retour_prevue, emprunteur
             FROM livres 
-            WHERE statut = 'emprunté' AND date_retour_prevue < ?
+            WHERE emprunteur IS NOT NULL 
+            AND emprunteur != ''
+            AND date_retour_prevue < ?
         ''', (aujourdhui,))
         
         rows = cursor.fetchall()
@@ -444,8 +448,46 @@ class BibliothequeDB:
         shutil.copy2(self.db_path, backup_name)
         return f"✅ Base de données sauvegardée vers {backup_name}"
     
+    def restaurer_backup_interactif(self):
+        """Ouvre une boîte de dialogue pour sélectionner un fichier backup et le restaurer"""
+        from tkinter import filedialog
+        import os
+        import shutil
+        
+        # Ouvrir la boîte de dialogue pour choisir un fichier
+        filename = filedialog.askopenfilename(
+            title="Sélectionner un fichier de sauvegarde",
+            filetypes=[("Base de données SQLite", "*.db"), ("Tous les fichiers", "*.*")],
+            initialdir="."
+        )
+        
+        if not filename:
+            return False, "Aucun fichier sélectionné"
+        
+        if not os.path.exists(filename):
+            return False, f"Fichier {filename} non trouvé"
+        
+        try:
+            # Vérifier que c'est bien une base SQLite
+            test_conn = sqlite3.connect(filename)
+            test_conn.cursor().execute("SELECT name FROM sqlite_master WHERE type='table'")
+            test_conn.close()
+            
+            # Faire une copie de sauvegarde avant restauration
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            auto_backup = f"auto_backup_before_restore_{timestamp}.db"
+            shutil.copy2(self.db_path, auto_backup)
+            
+            # Restaurer le fichier sélectionné
+            shutil.copy2(filename, self.db_path)
+            
+            return True, f"✅ Base restaurée depuis {os.path.basename(filename)}\n\n📁 Sauvegarde automatique créée: {auto_backup}"
+            
+        except Exception as e:
+            return False, f"❌ Erreur lors de la restauration: {str(e)}"
+    
     def restaurer_backup(self, backup_path):
-        """Restaure une sauvegarde"""
+        """Restaure une sauvegarde (méthode avec chemin direct)"""
         import shutil
         import os
         
@@ -472,7 +514,6 @@ class BibliothequeDB:
         """Ajoute une catégorie (vérification d'existence)"""
         categories = self.get_toutes_categories()
         if categorie not in categories:
-            # On ne peut pas ajouter une catégorie seule, on attend qu'un livre l'utilise
             return f"📌 La catégorie '{categorie}' sera disponible lors de l'ajout d'un livre"
         return f"⚠️ La catégorie '{categorie}' existe déjà"
     
